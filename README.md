@@ -85,7 +85,7 @@ n8n-website-scraper/
 ## 1️⃣ Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/n8n-website-scraper.git
+git clone https://github.com/Ali-Zia3500/n8n-web-scraping-automation.git
 ```
 
 ---
