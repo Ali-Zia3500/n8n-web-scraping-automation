@@ -1,0 +1,356 @@
+{
+  "name": "Scraper",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -304
+      ],
+      "id": "00047c91-5228-4b75-bc23-08d3b6bb2752",
+      "name": "Start Workflow"
+    },
+    {
+      "parameters": {
+        "url": "https://trysoftai.com",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        176,
+        -672
+      ],
+      "id": "addfa74b-23d2-466a-a9dc-9fbc7fe9a6db",
+      "name": "Fetch Homepage"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst html = item.body || item.data || item.html || Object.values(item).find(v => typeof v === 'string' && v.length > 100) || '';\nconst base = 'https://trysoftai.com';\n\nif (!html) {\n  throw new Error('No HTML received from homepage');\n}\n\nconst matches = [...html.matchAll(/href=[\"']([^\"'#\\s]+)[\"']/gi)];\nconst allLinks = matches.map(m => m[1]);\n\nconst internal = [...new Set(\n  allLinks\n    .filter(l => l && l.trim() !== '')\n    .filter(l => l.startsWith('/') || l.startsWith(base))\n    .filter(l => !l.includes('facebook'))\n    .filter(l => !l.includes('twitter'))\n    .filter(l => !l.includes('linkedin'))\n    .filter(l => !l.includes('instagram'))\n    .filter(l => !l.includes('youtube'))\n    .filter(l => !l.includes('.css'))\n    .filter(l => !l.includes('.js'))\n    .filter(l => !l.includes('.png'))\n    .filter(l => !l.includes('.jpg'))\n    .filter(l => !l.includes('.jpeg'))\n    .filter(l => !l.includes('.gif'))\n    .filter(l => !l.includes('.svg'))\n    .filter(l => !l.includes('.webp'))\n    .filter(l => !l.includes('.ico'))\n    .filter(l => !l.includes('.woff'))\n    .filter(l => !l.includes('.ttf'))\n    .filter(l => !l.includes('.pdf'))\n    .filter(l => !l.includes('/wp-content/'))\n    .filter(l => !l.includes('/wp-includes/'))\n    .filter(l => !l.includes('/wp-json/'))\n    .filter(l => !l.includes('/wp-admin/'))\n    .filter(l => !l.includes('?ver='))\n    .filter(l => !l.includes('cache/min'))\n    .filter(l => !l.includes('/feed/'))\n    .filter(l => !l.includes('/xmlrpc'))\n    .filter(l => !l.includes('/tag/'))\n    .filter(l => !l.includes('/category/'))\n    .filter(l => !l.includes('/page/'))\n    .filter(l => !l.startsWith('#'))\n    .filter(l => !l.match(/\\/\\d{4}\\/\\d{2}\\//)) \n    .filter(l => !l.includes('/author/'))\n    .filter(l => !l.includes('//fonts.googleapis'))\n    .filter(l => !l.includes('//www.googletagmanager'))\n    .filter(l => !l.includes('//maps.google'))\n    .map(l => {\n      let url = l.startsWith('/') ? base + l : l;\n      // Remove query strings and fragments\n      url = url.split('?')[0].split('#')[0];\n      // Ensure trailing slash consistency\n      return url;\n    })\n    .filter(l => l.startsWith(base))\n    .filter(l => l.length > base.length) // Remove bare base URL duplicates... keep homepage explicitly\n)];\n\n// Always include homepage\nconst finalUrls = [base + '/', ...internal.filter(u => u !== base + '/')];\nconst unique = [...new Set(finalUrls)];\n\nconsole.log('Total REAL pages found:', unique.length);\nconsole.log('URLs:', JSON.stringify(unique, null, 2));\n\nreturn unique.map(url => ({ json: { pageUrl: url } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -512
+      ],
+      "id": "c13c30cf-77cf-4979-a285-a220eebb3907",
+      "name": "Extract All Page URLs"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        496,
+        -256
+      ],
+      "id": "007c54fc-bb87-48bc-b6b0-753af85207e6",
+      "name": "Loop Over Pages"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preserve the pageUrl before Wait node resets context\nconst url = $input.first().json.pageUrl;\nif (!url) {\n  throw new Error('pageUrl is missing from input');\n}\nconsole.log('Processing URL:', url);\nreturn [{ json: { pageUrl: url } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -496
+      ],
+      "id": "948ed5a6-a78c-4178-a10c-9b083d0ddbb7",
+      "name": "Preserve URL"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1136,
+        -480
+      ],
+      "id": "d582cb78-0cfe-4699-812e-7e706088a93c",
+      "name": "Wait 2 Seconds",
+      "webhookId": "wait-webhook-001"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.pageUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        -464
+      ],
+      "id": "8e79e9fe-3669-4447-9110-84f50311d67d",
+      "name": "Fetch Each Page",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\n// Get HTML\nconst html = item.body || item.data || item.html || item.content ||\n  Object.values(item).find(v => typeof v === 'string' && v.length > 200) || '';\n\n// Get URL - check previous nodes context\nconst url = item.pageUrl || item.url || $('Preserve URL').first().json.pageUrl || 'Unknown URL';\n\nif (!html || html.length < 100) {\n  console.log('No content for:', url);\n  return [{ json: { \n    url, \n    content: `=== PAGE: ${url} ===\\nNo content found\\n================================\\n`,\n    charCount: 0\n  }}];\n}\n\n// Deep HTML cleaning\nconst clean = html\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<nav[\\s\\S]*?<\\/nav>/gi, '')\n  .replace(/<footer[\\s\\S]*?<\\/footer>/gi, '')\n  .replace(/<header[\\s\\S]*?<\\/header>/gi, '')\n  .replace(/<noscript[\\s\\S]*?<\\/noscript>/gi, '')\n  .replace(/<iframe[\\s\\S]*?<\\/iframe>/gi, '')\n  .replace(/<svg[\\s\\S]*?<\\/svg>/gi, '')\n  .replace(/<!--[\\s\\S]*?-->/g, '')\n  .replace(/&amp;/g, '&')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>')\n  .replace(/&quot;/g, '\"')\n  .replace(/&#038;/g, '&')\n  .replace(/&#8217;/g, \"'\")\n  .replace(/&#8216;/g, \"'\")\n  .replace(/&#8220;/g, '\"')\n  .replace(/&#8221;/g, '\"')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nconst content = `=== PAGE: ${url} ===\\n${clean}\\n================================\\n`;\n\nconsole.log(`Scraped: ${url} | Characters: ${clean.length}`);\n\nreturn [{ json: { url, content, charCount: clean.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        -400
+      ],
+      "id": "615f185e-e00a-4289-9900-6097a54e75dd",
+      "name": "Clean & Extract Content"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "allPages",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        896,
+        -112
+      ],
+      "id": "d9552e2b-ea1d-4892-b771-dfc521360504",
+      "name": "Aggregate All Pages"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json.allPages;\n\nif (!data || !Array.isArray(data)) {\n  throw new Error('No pages data received from Aggregate node');\n}\n\n// Combine all page content\nconst allContent = data\n  .filter(p => p.content && p.charCount > 0)\n  .map(p => p.content)\n  .join('\\n\\n');\n\n// Build summary\nconst totalPages = data.length;\nconst successPages = data.filter(p => p.charCount > 0).length;\nconst failedPages = data.filter(p => p.charCount === 0).map(p => p.url);\n\nconst summary = `\n========================================\nWEBSITE SCRAPING REPORT\n========================================\nWebsite: https://trysoftai.com\nScraped At: ${new Date().toISOString()}\nTotal Pages Found: ${totalPages}\nSuccessfully Scraped: ${successPages}\nFailed Pages: ${failedPages.length > 0 ? failedPages.join(', ') : 'None'}\n========================================\n\n`;\n\nconst finalDocument = summary + allContent;\n\nconsole.log('Final document length:', finalDocument.length);\nconsole.log('Total pages scraped:', successPages);\n\nreturn [{ \n  json: { \n    websiteData: finalDocument,\n    totalPages,\n    successPages,\n    failedPages,\n    scrapedAt: new Date().toISOString(),\n    documentLength: finalDocument.length\n  } \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        -112
+      ],
+      "id": "a87a821a-7bda-4ba5-ae6d-46aa79373848",
+      "name": "Final Merge & Report"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "https://docs.google.com/document/d/1qTZcaz1iYo9f8tUaSPVVIe_lz_B78jRcre-88iI1O8E/edit?usp=sharing",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $json.textToInsert }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        1616,
+        -112
+      ],
+      "id": "9a326d77-801f-4616-9491-a1aa8fd6ee83",
+      "name": "Update a document",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "rjHhaJ0tp09jARgu",
+          "name": "Google Docs OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the website data from previous node\nconst data = $input.first().json.websiteData || \n             $input.first().json.content ||\n             Object.values($input.first().json).find(v => typeof v === 'string' && v.length > 100);\n\nif (!data) {\n  throw new Error('No website data found in input');\n}\n\n// Google Docs has a 1MB limit per request\n// So we trim if too long\nconst trimmed = data.substring(0, 800000);\n\nreturn [{ json: { textToInsert: trimmed } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        -112
+      ],
+      "id": "81f39e49-bf86-4ba4-a9ff-2808f1d80565",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start Workflow": {
+      "main": [
+        [
+          {
+            "node": "Fetch Homepage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Homepage": {
+      "main": [
+        [
+          {
+            "node": "Extract All Page URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract All Page URLs": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Pages": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Pages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preserve URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preserve URL": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Fetch Each Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Each Page": {
+      "main": [
+        [
+          {
+            "node": "Clean & Extract Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean & Extract Content": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Pages": {
+      "main": [
+        [
+          {
+            "node": "Final Merge & Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Merge & Report": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Update a document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8b319e4f-4a9a-4451-97ef-c2e4d3cbbe24",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a8a4c3682953a27eee1ca23777b2a91155090b62daeb7eb2559f3c57f0676f37"
+  },
+  "id": "GAtF8qUUbzoKCRsh",
+  "tags": []
+}
